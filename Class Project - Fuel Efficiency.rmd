@@ -1,0 +1,175 @@
+---
+title: "*Motor Trend* Fuel Efficiency Analysis"
+output: html_document
+fontsize: 10pt
+---
+
+### Executive Summary
+
+We find that manual transmission (am = 1) cars are more fuel efficient than automatics, and that this advantage is approximatly 2.94 miles per gallon.  Further, we conclude that the other major influences on a car's fuel economy are weight (wt) and tuning for performance over efficiency represented by quarter mile driving time (qsec).
+
+
+### Analysis
+
+```{r, echo=F, message=F, warning=F}
+data(mtcars)
+data <- mtcars[,c(1,9,6,3,4,5,7,2,8,10,11)]
+```
+
+Due to prior subject matter expertise in physics we assumed that vehicle weight is a true predictor of fuel efficiency.  Due to our small sample (32 records) and desire for a parsimonious model, we only consider first order effects (no interactions).  Therefore, we take our basic model to be $\hat{\text{mpg}} = \beta_0 + \beta_1 \text{am} + \beta_2 \text{wt}$
+
+```{r, echo=T, message=F, warning=F}
+fit <- lm(mpg ~ am + wt, data=data)
+```
+
+Initial exploration (Figures 1 & 2, Appendix) indicated possible relationships between mpg and all predictor variables.  Our analysis therefore focused on selecting variables to exclude from the model.
+
+We broke the variables into two categories, "performance" and "other", because variables measuring a car's performance are likely to contain similar information.  Beginning with a model including all the performance variables (plus am and wt), we sequentially eliminated the variables with the least significant coefficients.  The final elimination was the only one indicated to be significant by a likelihood ratio F-test.
+
+
+```{r, echo=F, message=F, warning=F}
+fit_perf <- lm(mpg ~ am + wt + disp + cyl + hp + qsec, data=data)
+
+fit_perf1 <- lm(mpg ~ am + wt + disp + hp + qsec, data=data)
+fit_perf2 <- lm(mpg ~ am + wt + hp + qsec, data=data)
+fit_qsec <- lm(mpg ~ am + wt + qsec, data=data)
+```
+
+```{r, echo=F, message=F, warning=F}
+anova(fit_perf, fit_perf1, fit_perf2, fit_qsec, fit)
+```
+
+
+We confirmed that qsec was most important performance variable to include in the model based on relative F-statistics.  Based on this work, we will include qsec in our final model.
+
+```{r, echo=F, message=F, warning=F}
+fit_disp <- lm(mpg ~ am + wt + disp, data=data)
+fit_cyl  <- lm(mpg ~ am + wt + cyl , data=data)
+fit_hp   <- lm(mpg ~ am + wt + hp  , data=data)
+```
+
+```{r, echo=T, message=F, warning=F, results="hide"}
+anova(fit, fit_disp)  ## Pr(>F) = 0.06788
+anova(fit, fit_cyl)   ## Pr(>F) = 0.00129 **
+anova(fit, fit_hp)    ## Pr(>F) = 0.00055 ***
+anova(fit, fit_qsec)  ## Pr(>F) = 0.00022 ***
+```
+
+
+Taking our model of mpg predicted by transmission, weight, and quarter mile time, we examined the impact of adding the four non-performance variables both individually and as a group.  None of five of the resulting models showed a p-value of less than 0.26 based on a likelihood ratio test.  We conclude that there is little evidence that any of these variables significantly affects fuel efficiency.
+
+
+```{r, echo=F, message=F, warning=F}
+fit_vs     <- lm(mpg ~ am + wt + qsec + vs, data=data)
+fit_gear   <- lm(mpg ~ am + wt + qsec + gear, data=data)
+fit_carb   <- lm(mpg ~ am + wt + qsec + carb, data=data)
+fit_drat   <- lm(mpg ~ am + wt + qsec + drat, data=data)
+fit_other  <- lm(mpg ~ am + wt + qsec + drat+ carb+ gear+ vs, data=data)
+```
+
+```{r, echo=F, message=F, warning=F, results="hide"}
+anova(fit_qsec, fit_vs)
+anova(fit_qsec, fit_gear)
+anova(fit_qsec, fit_carb)
+anova(fit_qsec, fit_drat)
+anova(fit_qsec, fit_other)
+```
+
+### Conclusions & Diagnostics
+
+Our final model predicts fuel economy as a function of transmission, weight, and quarter mile speed.
+$$\hat{\text{mpg}} = 9.62 + 2.94 \text{am} + -3.92 \text{wt} +1.23 \text{qsec}$$
+
+```{r, echo=F, message=F, warning=F}
+summary(fit_qsec)$coef
+confint(fit_qsec)
+```
+
+The $95%$ confidence interval around the coefficient on transmission is $(0.05, 5.83)$, indicating that there is in fact a signifant difference in fuel economy based on transmission type.  We conclude that manual transmission cars ($\text{am} = 1$) have a fuel economy advantage of $2.94mpg$.  Further, we note that each additional 1,000 pounds of weight decreases the efficiency of the car by $3.91mpg$, while detuning the performance to have an $1$ second slower quarter mile time increases the efficiency by $1.23mpg$.
+
+
+We include scatter and QQ plots of the residuals in Figures 3 and 4 in the Appendix.  A Shapiro-Wilk Normality test finds that the set of residuals fail to be non-normally distributed at the 0.05 significance level.
+
+```{r, echo=T, message=F, warning=F}
+shapiro.test(resid(fit_qsec))
+```
+
+
+
+### Appendix: Tables & Figures
+
+\ 
+
+```{r, echo=F, message=F, warning=F}
+## Fig.2
+mtcars_con <- subset(mtcars, select=c(mpg, disp, hp, drat, qsec))
+```
+
+```{r, echo=F, message=F, warning=F, fig.width=6, fig.height=4}
+plot.new()
+par(mfrow=c(2,2), mai=c(0.4,0.4,0.4,0.4))
+for (i in 2:5){
+   plot(mtcars_con$mpg ~ mtcars_con[,i])
+   title(names(mtcars_con[i]))
+   }
+
+title("Fig.1: MPG vs. Continuous Variables", line=-1, outer=TRUE)
+
+```
+
+\ 
+
+\ 
+
+```{r, echo=F, message=F, warning=F}
+## Fig.2
+mtcars_cat <- subset(mtcars, select=c(mpg, cyl, vs, gear, carb))
+```
+
+```{r scatterplot, echo=F, message=F, warning=F, fig.width=6, fig.height=4}
+plot.new()
+par(mfrow=c(2,2), mai=c(0.4,0.4,0.4,0.4))
+for (i in 2:5){
+   boxplot(mtcars_cat$mpg~mtcars_cat[,i],  xlab="")
+   title(names(mtcars_cat[i]))
+}
+
+title("Fig.2: MPG vs. Categorical Variables", line=-1, outer=TRUE)
+```
+
+
+\ 
+
+\ 
+
+```{r, echo=F, message=F, warning=F, fig.width=6, fig.height=4}
+## Fig.3
+plot.new()
+plot(fitted(fit_qsec), resid(fit_qsec), main="Fig.3: Model Residuals vs Fitted Values", xlab="Predicted mpg", ylab="Residuals")
+
+```
+
+\ 
+
+\ 
+
+```{r, echo=F, message=F, warning=F, fig.width=6, fig.height=4}
+## Fig.4
+plot.new()
+hist(rstandard(fit_qsec), main="Fig.4: Histogram of Residuals", xlab="Residual", ylab="Frequency")
+
+```
+
+
+
+\ 
+
+\ 
+
+```{r, echo=F, message=F, warning=F, fig.width=6, fig.height=4}
+## Fig.5
+plot.new()
+qqnorm(resid(fit_qsec), main="Fig.5: Quantile Plot of Residuals", xlab="Predicted mpg", ylab="Residuals")
+qqline(resid(fit_qsec))
+
+```
